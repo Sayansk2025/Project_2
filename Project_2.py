@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 import os
+import matplotlib.pyplot as plt
 
 # Функция для внесения данных
 def input_data():
@@ -12,6 +13,9 @@ def input_data():
         st.warning("Пожалуйста, введите название мероприятия.")
         return
     
+    # Поле для даты мероприятия
+    event_date = st.date_input("Дата мероприятия")
+    
     # Поле для уровня мероприятия
     event_level = st.selectbox("Уровень мероприятия", ["Областной", "Региональный", "Городской", "Школьный"])
     
@@ -22,7 +26,8 @@ def input_data():
     result_options = [
         "Победитель", "Призер (2 место)", "Призер (3 место)", "Участник",
         "Диплом 1 степени", "Диплом 2 степени", "Диплом 3 степени",
-        "Лауреат", "Гран-при", "Дипломант", "Специальный приз"
+        "Лауреат", "Гран-при", "Дипломант", "Специальный приз",
+        "Без места", "Активный участник"
     ]
     event_result = st.selectbox("Результат участия", result_options)
     
@@ -68,7 +73,7 @@ def input_data():
     
     # Кнопка для сохранения данных и создания таблицы
     if st.button("Сохранить данные"):
-        save_data(event_name, event_level, event_type, event_result, participants, classes)
+        save_data(event_date, event_name, event_level, event_type, event_result, participants, classes)
 
 # Функция для анализа данных
 def analyze_data():
@@ -81,8 +86,8 @@ def analyze_data():
         st.warning("Файл с данными не найден. Пожалуйста, сначала внесите данные.")
         return
     
-    # Выбор анализа: по классу или по ученику
-    analysis_type = st.radio("Выберите тип анализа", ["По классу", "По ученику"])
+    # Выбор анализа: по классу, по ученику или по школе
+    analysis_type = st.radio("Выберите тип анализа", ["По классу", "По ученику", "По школе"])
     
     if analysis_type == "По классу":
         # Анализ по классу
@@ -99,11 +104,17 @@ def analyze_data():
         st.write(f"### Результаты для класса {selected_class}")
         st.write(result_counts)
         
+        # Визуализация: круговая диаграмма для распределения результатов
+        fig, ax = plt.subplots()
+        ax.pie(result_counts["Количество"], labels=result_counts["Результат"], autopct="%1.1f%%", startangle=90)
+        ax.set_title(f"Распределение результатов для класса {selected_class}")
+        st.pyplot(fig)
+        
         # Список мероприятий для класса
         st.write("### Мероприятия:")
-        st.write(class_data[["Название мероприятия", "Уровень мероприятия", "Тип мероприятия", "Результат участия", "Участник"]])
+        st.write(class_data[["Дата", "Название мероприятия", "Уровень мероприятия", "Тип мероприятия", "Результат участия", "Участник"]])
     
-    else:
+    elif analysis_type == "По ученику":
         # Анализ по ученику
         participants = df["Участник"].unique()
         selected_participant = st.selectbox("Выберите участника", participants)
@@ -118,30 +129,77 @@ def analyze_data():
         st.write(f"### Результаты для участника {selected_participant}")
         st.write(result_counts)
         
+        # Визуализация: столбчатая диаграмма для распределения результатов
+        fig, ax = plt.subplots()
+        ax.bar(result_counts["Результат"], result_counts["Количество"], color="skyblue")
+        ax.set_title(f"Результаты участника {selected_participant}")
+        ax.set_xlabel("Результат")
+        ax.set_ylabel("Количество")
+        st.pyplot(fig)
+        
         # Список мероприятий для участника
         st.write("### Мероприятия:")
-        st.write(participant_data[["Название мероприятия", "Уровень мероприятия", "Тип мероприятия", "Результат участия", "Класс"]])
+        st.write(participant_data[["Дата", "Название мероприятия", "Уровень мероприятия", "Тип мероприятия", "Результат участия", "Класс"]])
+    
+    elif analysis_type == "По школе":
+        # Анализ по школе
+        st.subheader("Общий рейтинг школы")
+        
+        # 1. Количество мероприятий по уровням
+        level_counts = df["Уровень мероприятия"].value_counts().reset_index()
+        level_counts.columns = ["Уровень", "Количество"]
+        
+        st.write("### Количество мероприятий по уровням")
+        st.write(level_counts)
+        
+        # Визуализация: столбчатая диаграмма
+        fig, ax = plt.subplots()
+        ax.bar(level_counts["Уровень"], level_counts["Количество"], color="lightgreen")
+        ax.set_title("Количество мероприятий по уровням")
+        ax.set_xlabel("Уровень мероприятия")
+        ax.set_ylabel("Количество")
+        st.pyplot(fig)
+        
+        # 2. Распределение результатов по школе
+        result_counts = df["Результат участия"].value_counts().reset_index()
+        result_counts.columns = ["Результат", "Количество"]
+        
+        st.write("### Распределение результатов по школе")
+        st.write(result_counts)
+        
+        # Визуализация: круговая диаграмма
+        fig, ax = plt.subplots()
+        ax.pie(result_counts["Количество"], labels=result_counts["Результат"], autopct="%1.1f%%", startangle=90)
+        ax.set_title("Распределение результатов по школе")
+        st.pyplot(fig)
+        
+        # 3. Лидеры среди классов по количеству мероприятий
+        class_counts = df.groupby("Класс").size().reset_index(name="Количество мероприятий")
+        class_counts = class_counts.sort_values(by="Количество мероприятий", ascending=False)
+        
+        st.write("### Лидеры среди классов по количеству мероприятий")
+        st.write(class_counts)
+        
+        # Визуализация: линейная диаграмма
+        fig, ax = plt.subplots()
+        ax.plot(class_counts["Класс"], class_counts["Количество мероприятий"], marker="o", color="orange")
+        ax.set_title("Лидеры среди классов по количеству мероприятий")
+        ax.set_xlabel("Класс")
+        ax.set_ylabel("Количество мероприятий")
+        st.pyplot(fig)
 
 # Функция для сохранения данных и обновления Excel-таблицы
-def save_data(event_name, event_level, event_type, event_result, participants, classes):
+def save_data(event_date, event_name, event_level, event_type, event_result, participants, classes):
     # Создаем DataFrame с данными
     data = {
-        "Название мероприятия": [],
-        "Уровень мероприятия": [],
-        "Тип мероприятия": [],
-        "Результат участия": [],
-        "Участник": [],
-        "Класс": []
+        "Дата": [event_date] * len(participants),
+        "Название мероприятия": [event_name] * len(participants),
+        "Уровень мероприятия": [event_level] * len(participants),
+        "Тип мероприятия": [event_type] * len(participants),
+        "Результат участия": [event_result] * len(participants),
+        "Участник": participants,
+        "Класс": classes
     }
-    
-    # Заполняем данные для каждого участника
-    for participant, cls in zip(participants, classes):
-        data["Название мероприятия"].append(event_name)
-        data["Уровень мероприятия"].append(event_level)
-        data["Тип мероприятия"].append(event_type)
-        data["Результат участия"].append(event_result)
-        data["Участник"].append(participant)
-        data["Класс"].append(cls)
     
     df = pd.DataFrame(data)
     
